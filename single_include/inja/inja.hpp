@@ -1846,7 +1846,7 @@ namespace inja {
 					inja::string_view::starts_with(open_str, m_config.line_statement)) {
 					m_state = State::LineStart;
 				}
-				else if (string_view::starts_with(open_str, m_config.pre_open)) {
+				else if (inja::string_view::starts_with(open_str, m_config.pre_open)) {
 					m_state = State::PreStart;
 				}
 				else {
