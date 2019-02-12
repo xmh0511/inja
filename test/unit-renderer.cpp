@@ -70,6 +70,34 @@ TEST_CASE("types") {
 		// CHECK_THROWS_WITH( env.render("{% for name in relatives %}{{ name }}{% endfor %}", data), "[inja.exception.json_error] [json.exception.type_error.302] type must be array, but is object" );
 	}
 
+	SECTION("nested loops") {
+		auto ldata = json::parse(
+R"DELIM(
+{ "outer" : [ 
+	{ "inner" : [
+		{ "in2" : [ 1, 2 ] },
+		{ "in2" : []},
+		{ "in2" : []}
+		]
+	},
+	{ "inner" : [] },
+	{ "inner" : [
+		{ "in2" : [ 3, 4 ] },
+		{ "in2" : [ 5, 6 ] }
+		]
+	}
+	]
+}
+)DELIM"
+				);
+		CHECK(env.render(R"DELIM(
+{% for o in outer %}{% for i in o.inner %}{{loop.parent.index}}:{{loop.index}}::{{loop.parent.is_last}}
+{% for ii in i.in2%}{{ii}},{%endfor%}
+{%endfor%}{%endfor%}
+)DELIM",
+					ldata) == "\n0:0::false\n1,2,\n0:1::false\n\n0:2::false\n\n2:0::true\n3,4,\n2:1::true\n5,6,\n\n");
+	}
+
 	SECTION("conditionals") {
 		CHECK( env.render("{% if is_happy %}Yeah!{% endif %}", data) == "Yeah!" );
 		CHECK( env.render("{% if is_sad %}Yeah!{% endif %}", data) == "" );
@@ -261,12 +289,12 @@ TEST_CASE("callbacks") {
 	data["age"] = 28;
 
 	env.add_callback("double", 1, [](inja::Arguments& args) {
-		int number = args.at(0)->get<double>();
+		int number = args.at(0)->get<int>();
 		return 2 * number;
 	});
 
 	env.add_callback("half", 1, [](inja::Arguments args) {
-		int number = args.at(0)->get<double>();
+		int number = args.at(0)->get<int>();
 		return number / 2;
 	});
 
@@ -387,5 +415,18 @@ TEST_CASE("other-syntax") {
 
 		CHECK( env.render("Hello {# Test #}", data) == "Hello {# Test #}" );
 		CHECK( env.render("Hello (& Test &)", data) == "Hello " );
+	}
+
+	SECTION("multiple changes") {
+		inja::Environment env;
+		env.set_line_statement("$$");
+		env.set_expression("<%", "%>");
+
+		std::string string_template = R"DELIM(Hello <%name%>
+$$ if name == "Peter"
+	You really are <%name%>
+$$ endif
+)DELIM";
+        	CHECK( env.render(string_template, data) == "Hello Peter\n	You really are Peter\n");
 	}
 }

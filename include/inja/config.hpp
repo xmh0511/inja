@@ -3,7 +3,8 @@
 
 #include <functional>
 #include <string>
-#include <string_view>
+
+#include "string_view.hpp"
 
 
 namespace inja {
@@ -26,7 +27,10 @@ namespace inja {
 		std::string pre_close{ "}#" };
 
 		void update_open_chars() {
-			open_chars = "\n";
+			open_chars = "";
+			if (open_chars.find(line_statement[0]) == std::string::npos) {
+				open_chars += line_statement[0];
+			}
 			if (open_chars.find(statement_open[0]) == std::string::npos) {
 				open_chars += statement_open[0];
 			}

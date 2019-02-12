@@ -19,7 +19,6 @@ data["name"] = "world";
 inja::render("Hello {{ name }}!", data); // Returns "Hello world!"
 ```
 
-
 ## Integration
 
 Inja is a headers only library, which can be downloaded from the [releases](https://github.com/pantor/inja/releases) or directly from the `include/` or `single_include/` folder. Inja uses `nlohmann/json.hpp` as its single dependency, so make sure it can be included from `inja.hpp`. json can be downloaded [here](https://github.com/nlohmann/json/releases). Then integration is as easy as:
@@ -43,7 +42,7 @@ If you are using [vcpkg](https://github.com/Microsoft/vcpkg) on your project for
 
 ## Tutorial
 
-This tutorial will give you an idea how to use inja. It will explain the most important concepts and give practical advices using examples and executable code.
+This tutorial will give you an idea how to use inja. It will explain the most important concepts and give practical advices using examples and executable code. Beside this tutorial, you may check out the [documentation](https://pantor.github.io/inja).
 
 ### Template Rendering
 
@@ -53,9 +52,12 @@ The basic template rendering takes a template as a `std::string` and a `json` ob
 json data;
 data["name"] = "world";
 
-render("Hello {{ name }}!", data); // "Hello world!"
+render("Hello {{ name }}!", data); // Returns std::string "Hello world!"
+render_to(std::cout, "Hello {{ name }}!", data); // Prints "Hello world!"
+```
 
-// For more advanced usage, an environment is recommended
+For more advanced usage, an environment is recommended.
+```c++
 Environment env;
 
 // Render a string with json data
@@ -72,8 +74,8 @@ std::string result = env.render(temp, data); // "Hello Inja!"
 result = env.render_file("./template.txt", "./data.json");
 
 // Or write a rendered template file
-env.write(temp, data, "./result.txt")
-env.write("./template.txt", "./data.json", "./result.txt")
+env.write(temp, data, "./result.txt");
+env.write_with_json_file("./template.txt", "./data.json", "./result.txt");
 ```
 
 The environment class can be configured to your needs.
@@ -260,8 +262,8 @@ render("Hello{# Todo #}!", data); // "Hello!"
 
 ## Supported compilers
 
-Inja uses `string_view` from C++17, everything else should work with C++11. Currently, the following compilers are tested:
+Inja uses `string_view` from C++17, but includes the [polyfill](https://github.com/martinmoene/string-view-lite) from martinmoene. This way, the minimum version is C++11. Currently, the following compilers are tested:
 
-- GCC 7.0 - 8.0 (and possibly later)
-- Clang 6.0 (and possibly later)
-- Microsoft Visual C++ 2017 / Build Tools 15.1.548.43366 (and possibly later)
+- GCC 5.0 - 8.0 (and possibly later)
+- Clang 5.0 - 6.0 (and possibly later)
+- Microsoft Visual C++ 2015 - 2017 (and possibly later)

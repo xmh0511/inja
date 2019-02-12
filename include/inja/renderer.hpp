@@ -13,15 +13,15 @@
 
 namespace inja {
 
-	inline std::string_view convert_dot_to_json_pointer(std::string_view dot, std::string& out) {
+	inline nonstd::string_view convert_dot_to_json_pointer(nonstd::string_view dot, std::string& out) {
 		out.clear();
 		do {
-			std::string_view part;
+			nonstd::string_view part;
 			std::tie(part, dot) = string_view::split(dot, '.');
 			out.push_back('/');
 			out.append(part.begin(), part.end());
 		} while (!dot.empty());
-		return std::string_view(out.data(), out.size());
+		return nonstd::string_view(out.data(), out.size());
 	}
 
 	class Renderer {
@@ -60,7 +60,7 @@ namespace inja {
 
 		const json* get_imm(const Bytecode& bc) {
 			std::string ptr_buffer;
-			std::string_view ptr;
+			nonstd::string_view ptr;
 			switch (bc.flags & Bytecode::Flag::ValueMask) {
 			case Bytecode::Flag::ValuePop:
 				return nullptr;
@@ -113,15 +113,7 @@ namespace inja {
 		void update_loop_data() {
 			LoopLevel& level = m_loop_stack.back();
 
-			if (m_loop_stack.size() > 1) {
-				for (int i = m_loop_stack.size() - 2; i >= 0; i--) {
-					auto& level_it = m_loop_stack.at(i);
-
-					level.data[static_cast<std::string>(level_it.value_name)] = level_it.values.at(level_it.index);
-				}
-			}
-
-			if (level.key_name.empty()) {
+			if (level.loop_type == LoopLevel::Type::Array) {
 				level.data[static_cast<std::string>(level.value_name)] = level.values.at(level.index); // *level.it;
 				auto& loopData = level.data["loop"];
 				loopData["index"] = level.index;
@@ -140,23 +132,27 @@ namespace inja {
 
 		std::vector<json> m_stack;
 
+
 		struct LoopLevel {
-			std::string_view key_name;       // variable name for keys
-			std::string_view value_name;     // variable name for values
+			enum class Type { Map, Array };
+
+			Type loop_type;
+			nonstd::string_view key_name;       // variable name for keys
+			nonstd::string_view value_name;     // variable name for values
 			json data;                      // data with loop info added
 
 			json values;                    // values to iterate over
 
 			// loop over list
-			json::iterator it;              // iterator over values
 			size_t index;                   // current list index
 			size_t size;                    // length of list
 
 			// loop over map
-			using KeyValue = std::pair<std::string_view, json*>;
+			using KeyValue = std::pair<nonstd::string_view, json*>;
 			using MapValues = std::vector<KeyValue>;
 			MapValues map_values;            // values to iterate over
 			MapValues::iterator map_it;      // iterator over values
+
 		};
 
 		std::vector<LoopLevel> m_loop_stack;
@@ -170,6 +166,7 @@ namespace inja {
 		Renderer(const TemplateStorage& included_templates, const FunctionStorage& callbacks) : m_included_templates(included_templates), m_callbacks(callbacks) {
 			m_stack.reserve(16);
 			m_tmp_args.reserve(4);
+			m_loop_stack.reserve(16);
 		}
 
 		void render_to(std::ostream& os, const Template& tmpl, const json& data) {
@@ -480,7 +477,7 @@ namespace inja {
 					LoopLevel& level = m_loop_stack.back();
 					level.value_name = bc.str;
 					level.values = std::move(m_stack.back());
-					level.data = data;
+					level.data = (*m_data);
 					m_stack.pop_back();
 
 					if (bc.value.is_string()) {
@@ -489,6 +486,7 @@ namespace inja {
 							m_loop_stack.pop_back();
 							inja_throw("render_error", "for key, value requires object");
 						}
+						level.loop_type = LoopLevel::Type::Map;
 						level.key_name = bc.value.get_ref<const std::string&>();
 
 						// sort by key
@@ -505,7 +503,7 @@ namespace inja {
 						}
 
 						// list iterator
-						level.it = level.values.begin();
+						level.loop_type = LoopLevel::Type::Array;
 						level.index = 0;
 						level.size = level.values.size();
 					}
@@ -529,10 +527,8 @@ namespace inja {
 					LoopLevel& level = m_loop_stack.back();
 
 					bool done;
-					if (level.key_name.empty()) {
-						level.it += 1;
+					if (level.loop_type == LoopLevel::Type::Array) {
 						level.index += 1;
-						// done = (level.it == level.values.end());
 						done = (level.index == level.values.size());
 					}
 					else {
