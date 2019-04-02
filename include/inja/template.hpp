@@ -9,12 +9,12 @@
 
 namespace inja {
 
-	struct Template {
-		std::vector<Bytecode> bytecodes;
-		std::string content;
-	};
+struct Template {
+  std::vector<Bytecode> bytecodes;
+  std::string content;
+};
 
-	using TemplateStorage = std::map<std::string, Template>;
+using TemplateStorage = std::map<std::string, Template>;
 
 }
 
