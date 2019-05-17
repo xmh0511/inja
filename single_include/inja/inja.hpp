@@ -1369,7 +1369,7 @@ struct LexerConfig {
   std::string comment_open {"{#"};
   std::string comment_close {"#}"};
   std::string open_chars {"#{"};
-	std::string pre_open{ "#{" };
+  std::string pre_open{ "#{" };
 	std::string pre_close{ "}#" };
 
   void update_open_chars() {
@@ -1446,6 +1446,7 @@ struct Bytecode {
     GreaterEqual,
     Less,
     LessEqual,
+    At,
     Different,
     DivisibleBy,
     Even,
@@ -1798,11 +1799,9 @@ class Lexer {
         } else if ((m_pos == 0 || m_in[m_pos - 1] == '\n') &&
                    inja::string_view::starts_with(open_str, m_config.line_statement)) {
           m_state = State::LineStart;
-        }
-        else if (inja::string_view::starts_with(open_str, m_config.pre_open)) {
+        } else if (inja::string_view::starts_with(open_str, m_config.pre_open)) {
 					m_state = State::PreStart;
-				} 
-        else {
+				} else {
           m_pos += 1; // wasn't actually an opening sequence
           goto again;
         }
@@ -2048,6 +2047,7 @@ namespace inja {
 
 class ParserStatic {
   ParserStatic() {
+    functions.add_builtin("at", 2, Bytecode::Op::At);
     functions.add_builtin("default", 2, Bytecode::Op::Default);
     functions.add_builtin("divisibleBy", 2, Bytecode::Op::DivisibleBy);
     functions.add_builtin("even", 1, Bytecode::Op::Even);
@@ -2213,8 +2213,8 @@ class Parser {
               append_callback(tmpl, func_token.text, num_args);
               return true;
             }
-          } else if (m_tok.text == static_cast<decltype(m_tok.text)>("true") || 
-              m_tok.text == static_cast<decltype(m_tok.text)>("false") || 
+          } else if (m_tok.text == static_cast<decltype(m_tok.text)>("true") ||
+              m_tok.text == static_cast<decltype(m_tok.text)>("false") ||
               m_tok.text == static_cast<decltype(m_tok.text)>("null")) {
             // true, false, null are json literals
             if (brace_level == 0 && bracket_level == 0) {
@@ -2511,7 +2511,7 @@ class Parser {
 						inja_throw("parser_error", "expected pre close, got '" + m_tok.describe() + "'");
 					}
 					tmpl.bytecodes.emplace_back(Bytecode::Op::PrintText, m_tok.text, 0u);
-					break;
+				  break;
         default:
           inja_throw("parser_error", "unexpected token '" + m_tok.describe() + "'");
           break;
@@ -2776,8 +2776,8 @@ class Renderer {
     enum class Type { Map, Array };
 
     Type loop_type;
-    nonstd::string_view key_name;       // variable name for keys
-    nonstd::string_view value_name;     // variable name for values
+    nonstd::string_view key_name;   // variable name for keys
+    nonstd::string_view value_name; // variable name for values
     json data;                      // data with loop info added
 
     json values;                    // values to iterate over
@@ -2789,8 +2789,8 @@ class Renderer {
     // loop over map
     using KeyValue = std::pair<nonstd::string_view, json*>;
     using MapValues = std::vector<KeyValue>;
-    MapValues map_values;            // values to iterate over
-    MapValues::iterator map_it;      // iterator over values
+    MapValues map_values;           // values to iterate over
+    MapValues::iterator map_it;     // iterator over values
 
   };
 
@@ -2824,11 +2824,11 @@ class Renderer {
         }
         case Bytecode::Op::PrintValue: {
           const json& val = *get_args(bc)[0];
-          if (val.is_string())
+          if (val.is_string()) {
             os << val.get_ref<const std::string&>();
-          else
+          } else {
             os << val.dump();
-            // val.dump(os);
+          }
           pop_args(bc);
           break;
         }
@@ -2859,7 +2859,15 @@ class Renderer {
           break;
         }
         case Bytecode::Op::Length: {
-          auto result = get_args(bc)[0]->size();
+          const json& val = *get_args(bc)[0];
+
+          int result;
+          if (val.is_string()) {
+            result = val.get_ref<const std::string&>().length();
+          } else {
+            result = val.size();
+          }
+
           pop_args(bc);
           m_stack.emplace_back(result);
           break;
@@ -2869,6 +2877,13 @@ class Renderer {
           std::sort(result.begin(), result.end());
           pop_args(bc);
           m_stack.emplace_back(std::move(result));
+          break;
+        }
+        case Bytecode::Op::At: {
+          auto args = get_args(bc);
+          auto result = args[0]->at(args[1]->get<int>());
+          pop_args(bc);
+          m_stack.emplace_back(result);
           break;
         }
         case Bytecode::Op::First: {
@@ -3227,7 +3242,7 @@ class Environment {
   std::unique_ptr<Impl> m_impl;
 
  public:
-  Environment(): Environment("./") { }
+  Environment(): Environment("") { }
 
   explicit Environment(const std::string& global_path): m_impl(stdinja::make_unique<Impl>()) {
     m_impl->input_path = global_path;
